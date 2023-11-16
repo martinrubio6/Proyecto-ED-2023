@@ -5,65 +5,94 @@ import java.security.InvalidKeyException;
 import excepciones.EmptyListException;
 import excepciones.InvalidPositionException;
 import todo.DoubleLinkedList;
-import todo.Entry;
 import todo.Map;
 import todo.MapeoConHASH;
+import todo.Position;
 import todo.PositionList;
 
 public class LRUCacheMap<K, V> implements LRUCache<K, V> {
 
-	protected static int capacidad;// pienso (ESTA BIEN)
-	protected Map<K, V> mapeo;
+	protected static int capacidad;
+	protected Map<K, V> cache;
 	protected PositionList<K> lista;
+	protected Map<K,Position<K>> guardar; 
 
 	public LRUCacheMap(int capacity) {
 		capacidad = capacity;
-		mapeo = new MapeoConHASH<K, V>();
+		cache = new MapeoConHASH<K, V>();
 		lista = new DoubleLinkedList<K>();
+		guardar= new MapeoConHASH<K,Position<K>>();
 	}
 
 	@Override
 	public V get(K key) {
 		V devolver = null;
 		try {
-			if (key != null && !mapeo.isEmpty())
-				devolver = mapeo.get(key);
-		} catch (InvalidKeyException e) {
+			devolver=cache.get(key);
+			if(devolver!=null) {
+				lista.addLast(key);
+				lista.remove(guardar.get(key));
+				guardar.put(key,lista.last());
+			}
+		} catch (InvalidKeyException | InvalidPositionException | EmptyListException e) {
 			e.getMessage();
 		}
 		return devolver;
 	}
-
+	
 	@Override
 	public void put(K key, V value) {
-		if (key != null && !mapeo.isEmpty()) {// pienso, ya lo chequea en el put
 			try {
-				V resultado = mapeo.put(key, value);
-				if (resultado == null)
-					if (lista.size() < capacidad)
+				if (key != null ) { 
+				if(cache.get(key)!=null) { // Existia la clave.
+					cache.put(key, value);
+					lista.remove(guardar.get(key));
+					lista.addLast(key);
+					guardar.put(key, lista.last());
+				}
+				else { 
+					if (cache.size() >= capacidad) {
+						cache.put(key, value);
 						lista.addLast(key);
-					else {
+						guardar.put(key, lista.last());
+						
+						K lru = lista.first().element(); //elemento a eliminar PREGUNTAR si es lo mismo usar this.remove(lru)
 						lista.remove(lista.first());
-						lista.addLast(key);
+						cache.remove(lru);
+						guardar.remove(lru);
 					}
+					else {
+						cache.put(key, value);
+						lista.addLast(key);
+						guardar.put(key, lista.last());
+					}
+				}
+			}
 			} catch (InvalidKeyException | InvalidPositionException | EmptyListException e) {
 				e.printStackTrace();
 			}
-		}
+		
 	}
 
 	@Override
 	public void remove(K key) {
-		// TODO Auto-generated method stub
-
+		try {
+			cache.remove(key);
+			lista.remove(guardar.get(key));
+			guardar.remove(key);
+			
+		}catch (InvalidKeyException | InvalidPositionException e) {
+			e.getMessage();
+		}
 	}
 
 	@Override
 	public void clear() {
-		if (!mapeo.isEmpty())
+		if (!cache.isEmpty())
 		try {
 			for (K clave : lista) {
-				mapeo.remove(clave);
+				cache.remove(clave);
+				guardar.remove(clave);
 			}
 			while(!lista.isEmpty())
 				lista.remove(lista.first());
@@ -74,7 +103,7 @@ public class LRUCacheMap<K, V> implements LRUCache<K, V> {
 
 	@Override
 	public int size() {
-		return (mapeo.size());
+		return (cache.size());
 	}
 
 }
